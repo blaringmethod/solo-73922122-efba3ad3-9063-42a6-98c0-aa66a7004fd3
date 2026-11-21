@@ -1,0 +1,5 @@
+[
+  {"slip_no": "H001", "sample_a": "S1", "sample_b": "S2", "mean": "0.10"},
+  {"slip_no": "H002", "sample_a": "S2", "sample_b": "S4", "mean": "0.175"},
+  {"slip_no": "H003", "sample_a": "S4", "sample_b": "S5", "mean": "0.66"}
+]

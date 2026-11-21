@@ -4,9 +4,12 @@
   GET  /                 回次列表
   GET  /import           导入新回次（粘贴 JSON 或上传 JSON 文件）
   POST /import
-  GET  /runs/{run_id}    详情：段/样品可行范围、入仓清单、更正表单
+  GET  /runs/{run_id}    详情：段/样品可行范围、入仓清单、化验单与复原结果、更正表单
   POST /runs/{run_id}/correct   更正实测段起点（携带页面版本号）
   GET  /runs/{run_id}/csv       下载生效的入仓 CSV
+  POST /runs/{run_id}/slips                      按单号录入混样化验单
+  POST /runs/{run_id}/slips/{slip_no}/correct    按单号更正混样化验单
+  POST /runs/{run_id}/slips/{slip_no}/withdraw   按单号撤销混样化验单
 """
 
 from __future__ import annotations
@@ -20,16 +23,40 @@ from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
+from .assay import ContradictionError, SlipValidationError
 from .engine import EngineError, ValidationError
 from .storage import StaleVersionError, Store
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("APP_DATA_DIR", BASE_DIR.parent / "data"))
 DEMO_PATH = BASE_DIR / "demo_payload.json"
+DEMO_SLIPS_PATH = BASE_DIR / "demo_slips.json"
 
 app = FastAPI(title="地勘取芯数据入仓演示")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 store = Store(DATA_DIR / "runs.db")
+
+
+def _seed_demo_if_requested() -> None:
+    """APP_SEED_DEMO=1 且库内无回次时，载入演示回次与演示化验单。"""
+    if os.environ.get("APP_SEED_DEMO") != "1":
+        return
+    try:
+        if store.list_runs():
+            return
+        payload = json.loads(DEMO_PATH.read_text(encoding="utf-8"))
+        store.save_new_run(payload)
+        demo_slips = json.loads(DEMO_SLIPS_PATH.read_text(encoding="utf-8"))
+        for s in demo_slips:
+            store.create_slip(
+                payload["run_id"], s["slip_no"], s["sample_a"], s["sample_b"], s["mean"]
+            )
+        print(f"演示数据已载入：回次 {payload['run_id']}，化验单 {len(demo_slips)} 张")
+    except Exception as exc:  # 种子失败不影响应用启动（如并发重复种子）
+        print(f"演示数据载入跳过：{exc}")
+
+
+_seed_demo_if_requested()
 
 
 def _flash_redirect(url: str, kind: str, message: str) -> RedirectResponse:
@@ -111,6 +138,7 @@ def run_detail(request: Request, run_id: str):
         {
             "record": record,
             "history": store.correction_history(run_id),
+            "assay": store.assay_view(run_id),
             "flash": _pop_flash(request),
         },
     )
@@ -168,4 +196,75 @@ def download_csv(run_id: str):
         content=csv_bytes,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="supply_{run_id}.csv"'},
+    )
+
+
+# --------------------------------------------------------------------------- #
+# 混样化验单：按单号录入 / 更正 / 撤销
+# --------------------------------------------------------------------------- #
+def _slip_redirect(run_id: str, exc: Exception, action: str) -> RedirectResponse:
+    """化验单变更失败：说明原因，并明确当前化验单与复原结果保持不变。"""
+    if isinstance(exc, ContradictionError):
+        msg = f"{action}失败（与现行数据矛盾）：{exc}当前化验单和复原结果未做任何改动。"
+    elif isinstance(exc, SlipValidationError):
+        msg = f"{action}失败：{exc}当前化验单和复原结果未做任何改动。"
+    else:
+        msg = f"{action}失败：{exc}"
+    return _flash_redirect(f"/runs/{run_id}", "error", msg)
+
+
+@app.post("/runs/{run_id}/slips")
+def slip_create(
+    run_id: str,
+    slip_no: str = Form(""),
+    sample_a: str = Form(""),
+    sample_b: str = Form(""),
+    mean: str = Form(""),
+):
+    try:
+        store.create_slip(run_id, slip_no, sample_a, sample_b, mean)
+    except KeyError:
+        return _flash_redirect("/", "error", f"回次 {run_id} 不存在")
+    except (ContradictionError, SlipValidationError) as exc:
+        return _slip_redirect(run_id, exc, "化验单录入")
+    return _flash_redirect(
+        f"/runs/{run_id}",
+        "ok",
+        f"化验单 {slip_no.strip()} 录入成功，复原结果已按现行化验单重算。",
+    )
+
+
+@app.post("/runs/{run_id}/slips/{slip_no}/correct")
+def slip_correct(
+    run_id: str,
+    slip_no: str,
+    sample_a: str = Form(""),
+    sample_b: str = Form(""),
+    mean: str = Form(""),
+):
+    try:
+        store.correct_slip(run_id, slip_no, sample_a, sample_b, mean)
+    except KeyError:
+        return _flash_redirect("/", "error", f"回次 {run_id} 不存在")
+    except (ContradictionError, SlipValidationError) as exc:
+        return _slip_redirect(run_id, exc, f"化验单 {slip_no} 更正")
+    return _flash_redirect(
+        f"/runs/{run_id}",
+        "ok",
+        f"化验单 {slip_no} 更正成功，复原结果已按现行化验单重算。",
+    )
+
+
+@app.post("/runs/{run_id}/slips/{slip_no}/withdraw")
+def slip_withdraw(run_id: str, slip_no: str):
+    try:
+        store.withdraw_slip(run_id, slip_no)
+    except KeyError:
+        return _flash_redirect("/", "error", f"回次 {run_id} 不存在")
+    except SlipValidationError as exc:
+        return _slip_redirect(run_id, exc, f"化验单 {slip_no} 撤销")
+    return _flash_redirect(
+        f"/runs/{run_id}",
+        "ok",
+        f"化验单 {slip_no} 已撤销，复原结果已重算；不再唯一的样品已移出复原清单。",
     )

@@ -78,6 +78,141 @@
   </tbody>
 </table>
 
+<h2>混样化验单（两两等量混样）</h2>
+<p class="muted">
+  原样化验值空白的样品为缺测样品。每张化验单按单号管理，填写本回次两个不同原样编号与混样均值
+  （非负十进制，精确处理），关系为 原样A + 原样B = 2 × 混样均值。
+  录入/更正/撤销后立即结合现行化验单与已有原样值重算复原结果；
+  会造成矛盾的改动将被拒绝并说明原因，当前化验单与复原结果保持不变。
+</p>
+{% if assay %}
+<table>
+  <thead>
+    <tr><th>单号</th><th>原样A</th><th>原样B</th><th>混样均值</th><th>关系和（A+B）</th><th>最近更新</th><th>操作</th></tr>
+  </thead>
+  <tbody>
+  {% for s in assay.slips %}
+    <tr>
+      <td><code>{{ s.slip_no }}</code></td>
+      <td>{{ s.sample_a }}</td>
+      <td>{{ s.sample_b }}</td>
+      <td>{{ s.mean_text }}</td>
+      <td>{{ s.total_text }}</td>
+      <td>{{ s.updated_at }}</td>
+      <td>
+        <details class="slip-correct">
+          <summary>更正</summary>
+          <form method="post" action="/runs/{{ record.run_id }}/slips/{{ s.slip_no }}/correct">
+            <p><label>原样A：</label>
+              <select name="sample_a">
+                {% for no, _ in assay.sample_assays %}
+                <option value="{{ no }}" {% if no == s.sample_a %}selected{% endif %}>{{ no }}</option>
+                {% endfor %}
+              </select>
+              <label>原样B：</label>
+              <select name="sample_b">
+                {% for no, _ in assay.sample_assays %}
+                <option value="{{ no }}" {% if no == s.sample_b %}selected{% endif %}>{{ no }}</option>
+                {% endfor %}
+              </select>
+            </p>
+            <p><label>混样均值：</label>
+              <input type="text" name="mean" value="{{ s.mean_text }}">
+              <button type="submit">提交更正</button>
+            </p>
+          </form>
+        </details>
+        <form class="inline" method="post" action="/runs/{{ record.run_id }}/slips/{{ s.slip_no }}/withdraw"
+              onsubmit="return confirm('确认撤销化验单 {{ s.slip_no }}？撤销后不再唯一的复原值将被移除。');">
+          <button type="submit" class="btn-danger">撤销</button>
+        </form>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">暂无化验单，请在下方录入。</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="card">
+  <h3>录入新化验单</h3>
+  <form method="post" action="/runs/{{ record.run_id }}/slips">
+    <div class="grid4">
+      <div><label>单号</label><input type="text" name="slip_no" placeholder="如 H004" required></div>
+      <div><label>原样A</label>
+        <select name="sample_a">
+          {% for no, _ in assay.sample_assays %}<option value="{{ no }}">{{ no }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>原样B</label>
+        <select name="sample_b">
+          {% for no, _ in assay.sample_assays %}<option value="{{ no }}">{{ no }}</option>{% endfor %}
+        </select>
+      </div>
+      <div><label>混样均值</label><input type="text" name="mean" placeholder="如 0.125" required></div>
+    </div>
+    <p style="margin-top:10px"><button type="submit">录入化验单并重算</button></p>
+  </form>
+</div>
+
+<h2>缺测样品复原结果</h2>
+{% if assay.analysis.invalid %}
+<p class="error">
+  以下样品的原样值不是非负十进制，未参与推算，按缺测处理：
+  {% for it in assay.analysis.invalid %}{{ it.sample_no }}（{{ it.raw }}）{% if not loop.last %}，{% endif %}{% endfor %}
+</p>
+{% endif %}
+<div class="grid2">
+  <div>
+    <h3>取值唯一，已复原</h3>
+    <table>
+      <thead><tr><th>样品编号</th><th>复原值</th><th>推算依据</th></tr></thead>
+      <tbody>
+      {% for r in assay.analysis.recovered %}
+        <tr><td>{{ r.sample_no }}</td><td><strong>{{ r.value_text }}</strong></td><td class="muted">{{ r.basis }}</td></tr>
+      {% else %}
+        <tr><td colspan="3" class="muted">当前没有可唯一复原的缺测样品。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h3>待补测</h3>
+    <table>
+      <thead><tr><th>样品编号</th><th>原因</th></tr></thead>
+      <tbody>
+      {% for p in assay.analysis.pending %}
+        <tr><td>{{ p.sample_no }}</td><td class="muted">{{ p.reason }}</td></tr>
+      {% else %}
+        <tr><td colspan="2" class="muted">没有待补测的缺测样品。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="muted">
+  已有原样值（参与推算）：
+  {% if assay.analysis.known %}
+    {% for k in assay.analysis.known %}<code>{{ k.sample_no }}={{ k.text }}</code>{% if not loop.last %}，{% endif %}{% endfor %}
+  {% else %}无{% endif %}
+  ；缺测样品共 {{ assay.analysis.recovered | length + assay.analysis.pending | length }} 个。
+</p>
+
+<h3>化验单操作记录</h3>
+<table>
+  <thead><tr><th>#</th><th>操作</th><th>单号</th><th>内容</th><th>时间</th></tr></thead>
+  <tbody>
+  {% for h in assay.log %}
+    <tr><td>{{ h.id }}</td><td>{{ h.action }}</td><td><code>{{ h.slip_no }}</code></td><td>{{ h.detail }}</td><td>{{ h.created_at }}</td></tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">暂无化验单操作记录。</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="error">化验单数据读取失败。</p>
+{% endif %}
+
 <h2>更正岩芯段起点实测孔深</h2>
 <div class="card">
   <p class="muted">

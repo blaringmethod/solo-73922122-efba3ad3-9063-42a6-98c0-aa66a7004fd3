@@ -9,6 +9,7 @@ services:
       - coring_data:/data
     environment:
       APP_DATA_DIR: /data
+      APP_SEED_DEMO: "1"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=5)"]
