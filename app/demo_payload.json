@@ -1,0 +1,34 @@
+{
+  "run_id": "RUN-2026-01",
+  "start_depth": 10000,
+  "end_depth": 12500,
+  "segments": [
+    {
+      "length": 500,
+      "samples": [
+        {"sample_no": "S1", "start": 20, "end": 100, "assay": "0.12"},
+        {"sample_no": "S2", "start": 400, "end": 480, "assay": "0.08"}
+      ]
+    },
+    {
+      "length": 600,
+      "samples": [
+        {"sample_no": "S3", "start": 50, "end": 120, "assay": "0.31"},
+        {"sample_no": "S4", "start": 400, "end": 460, "assay": "0.27"}
+      ]
+    },
+    {
+      "length": 700,
+      "samples": [
+        {"sample_no": "S5", "start": 500, "end": 650, "assay": "1.05"}
+      ]
+    }
+  ],
+  "gaps": [
+    {"low": 100, "high": 300},
+    {"low": 100, "high": 300}
+  ],
+  "boundaries": [11200],
+  "layers": ["A层-强风化", "B层-中风化"],
+  "measured_starts": []
+}

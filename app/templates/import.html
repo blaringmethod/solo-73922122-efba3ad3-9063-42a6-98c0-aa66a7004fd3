@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}导入回次 - 地钻探芯数据入仓{% endblock %}
+{% block body %}
+<h1>导入取芯回次</h1>
+<div class="card">
+  <form method="post" action="/import" enctype="multipart/form-data">
+    <p>方式一：粘贴 JSON（文本框已预填演示回次 <code>RUN-2026-01</code>）：</p>
+    <textarea name="payload_text">{{ demo_text }}</textarea>
+    <p style="margin-top:12px">方式二：上传 JSON 文件（与文本框二选一，文件优先）：</p>
+    <input type="file" name="payload_file" accept=".json,application/json">
+    <p style="margin-top:16px"><button type="submit">校验并导入</button></p>
+  </form>
+</div>
+<h2>字段说明</h2>
+<table>
+  <thead><tr><th>字段</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>start_depth / end_depth</code></td><td>回次起止孔深，整数毫米，左闭右开</td></tr>
+    <tr><td><code>segments[].length</code></td><td>按顺序排列的岩芯段实长（毫米）</td></tr>
+    <tr><td><code>gaps[]</code></td><td>相邻段间缺失长度的上下限 <code>low/high</code>，段数减 1 个</td></tr>
+    <tr><td><code>segments[].samples[]</code></td><td>样品编号、段内起止位置（左闭右开，毫米）、化验值</td></tr>
+    <tr><td><code>boundaries / layers</code></td><td>地层分界深度（严格递增）与对应层位名称（分界数 + 1 个）</td></tr>
+    <tr><td><code>measured_starts[]</code></td><td>可选，数据员录入的段起点实测孔深 <code>seg_index/depth</code></td></tr>
+  </tbody>
+</table>
+{% endblock %}

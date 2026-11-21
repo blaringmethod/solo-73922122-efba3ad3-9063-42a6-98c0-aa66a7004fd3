@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}回次列表 - 地钻探芯数据入仓{% endblock %}
+{% block body %}
+<h1>取芯回次列表</h1>
+<p class="muted">深度单位均为整数毫米，区间左闭右开。数据保存在容器内 SQLite，更正后整份更新供数表。</p>
+<table>
+  <thead>
+    <tr><th>回次编号</th><th>当前版本</th><th>回次起止孔深 (mm)</th><th>最近更新时间</th><th>操作</th></tr>
+  </thead>
+  <tbody>
+  {% for r in runs %}
+    <tr>
+      <td><a href="/runs/{{ r.run_id }}">{{ r.run_id }}</a></td>
+      <td>v{{ r.version }}</td>
+      <td>[{{ r.start_depth }}, {{ r.end_depth }})</td>
+      <td>{{ r.updated_at }}</td>
+      <td>
+        <a class="btn btn-secondary" href="/runs/{{ r.run_id }}">查看/更正</a>
+        <a class="btn" href="/runs/{{ r.run_id }}/csv">下载入仓 CSV</a>
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">暂无回次，请先<a href="/import">导入</a>。</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

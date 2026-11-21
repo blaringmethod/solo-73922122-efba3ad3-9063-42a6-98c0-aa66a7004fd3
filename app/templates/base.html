@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}地钻探芯数据入仓{% endblock %}</title>
+<style>
+  body { font-family: "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; margin: 0; background: #f5f6f8; color: #1f2933; }
+  header { background: #1f4e79; color: #fff; padding: 14px 28px; }
+  header a { color: #cfe2ff; text-decoration: none; margin-right: 18px; }
+  main { max-width: 1180px; margin: 24px auto; padding: 0 20px; }
+  h1 { font-size: 20px; margin: 0 0 14px; }
+  h2 { font-size: 16px; margin: 26px 0 10px; border-left: 4px solid #1f4e79; padding-left: 8px; }
+  table { border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }
+  th, td { border: 1px solid #d6dae0; padding: 6px 9px; text-align: left; }
+  th { background: #eef2f7; }
+  .ok { background: #e7f6ec; border: 1px solid #2f9e44; color: #1b6e34; padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; }
+  .error { background: #fdecec; border: 1px solid #e03131; color: #a61b1b; padding: 10px 14px; border-radius: 6px; margin-bottom: 16px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+  .badge-in { background: #d3f9d8; color: #1b6e34; }
+  .badge-out { background: #ffe8cc; color: #b25900; }
+  textarea, input[type=text], input[type=number] { width: 100%; box-sizing: border-box; font-family: monospace; font-size: 13px; }
+  textarea { height: 320px; }
+  button, .btn { background: #1f4e79; color: #fff; border: 0; padding: 8px 18px; border-radius: 5px; cursor: pointer; text-decoration: none; display: inline-block; font-size: 14px; }
+  .btn-secondary { background: #5c6f82; }
+  .muted { color: #6b7684; font-size: 12px; }
+  code { background: #eef2f7; padding: 1px 5px; border-radius: 3px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .card { background: #fff; border: 1px solid #d6dae0; border-radius: 8px; padding: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <strong>地钻探芯数据入仓演示</strong>
+  <span style="float:right">
+    <a href="/">回次列表</a>
+    <a href="/import">导入回次</a>
+  </span>
+</header>
+<main>
+  {% if flash.message %}
+  <div class="{{ flash.kind }}">{{ flash.message }}</div>
+  {% endif %}
+  {% block body %}{% endblock %}
+</main>
+</body>
+</html>

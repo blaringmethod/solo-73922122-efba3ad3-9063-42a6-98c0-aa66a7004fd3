@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ record.run_id }} - 回次详情{% endblock %}
+{% block body %}
+<h1>回次 {{ record.run_id }} <span class="muted">（当前版本 v{{ record.version }}，更新于 {{ record.updated_at }}）</span></h1>
+<p>
+  <a class="btn" href="/runs/{{ record.run_id }}/csv">下载生效入仓 CSV</a>
+  <a class="btn btn-secondary" href="/">返回列表</a>
+</p>
+
+<h2>回次与地层信息</h2>
+<div class="card">
+  <p>
+    回次孔深区间：<code>[{{ record.start_depth }}, {{ record.end_depth }})</code> mm，
+    回次进尺 {{ record.end_depth - record.start_depth }} mm；
+    {% set ns = namespace(core_total=0) %}
+    {% for seg in record.payload.segments %}{% set ns.core_total = ns.core_total + seg.length %}{% endfor %}
+    岩芯实长合计 {{ ns.core_total }} mm，
+    总缺失允许范围：<code>[{{ record.result.total_gap_low }}, {{ record.result.total_gap_high }}]</code> mm
+    （上限 = 回次进尺 − 岩芯实长合计）。
+  </p>
+  <p>地层分界（mm）：
+    {% if record.payload.boundaries %}
+      {% for b in record.payload.boundaries %}<code>{{ b }}</code>{% if not loop.last %}，{% endif %}{% endfor %}
+    {% else %}无{% endif %}；
+    层位：{% for name in record.payload.layers %}<code>{{ name }}</code>{% if not loop.last %}、{% endif %}{% endfor %}
+  </p>
+</div>
+
+<h2>岩芯段孔深可行范围</h2>
+<table>
+  <thead>
+    <tr><th>段序号</th><th>实长 (mm)</th><th>起点孔深可行范围 [lo, hi]</th><th>终点孔深可行范围 [lo, hi)</th><th>已录入实测起点</th></tr>
+  </thead>
+  <tbody>
+  {% for i in range(record.payload.segments | length) %}
+    <tr>
+      <td>{{ i }}</td>
+      <td>{{ record.payload.segments[i].length }}</td>
+      <td>[{{ record.result.seg_start_lo[i] }}, {{ record.result.seg_start_hi[i] }}]</td>
+      <td>[{{ record.result.seg_end_lo[i] }}, {{ record.result.seg_end_hi[i] }})</td>
+      <td>
+        {% set found = record.measured_starts | selectattr(0, 'equalto', i) | list %}
+        {% if found %}{{ found[0][1] }} mm{% else %}<span class="muted">—</span>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>样品判定与供数</h2>
+<p class="muted">只有在全部可行排布中都完整落入同一地层的样品才写进入仓 CSV；其余样品显示起止孔深各自的可行范围并说明原因。</p>
+<table>
+  <thead>
+    <tr>
+      <th>样品编号</th><th>所在段</th><th>化验值</th>
+      <th>起点孔深可行范围 [lo, hi]</th><th>终点孔深可行范围 [lo, hi)</th>
+      <th>判定</th><th>层位 / 未入仓原因</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for s in record.result.samples %}
+    <tr>
+      <td>{{ s.sample_no }}</td>
+      <td>{{ s.seg_index }}</td>
+      <td>{{ s.assay }}</td>
+      <td>[{{ s.start_lo }}, {{ s.start_hi }}]</td>
+      <td>[{{ s.end_lo }}, {{ s.end_hi }})</td>
+      <td>
+        {% if s.layer %}
+          <span class="badge badge-in">写进入仓 CSV</span>
+        {% else %}
+          <span class="badge badge-out">暂不入仓</span>
+        {% endif %}
+      </td>
+      <td>{% if s.layer %}{{ s.layer }}{% else %}<span class="muted">{{ s.reason }}</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>更正岩芯段起点实测孔深</h2>
+<div class="card">
+  <p class="muted">
+    提交后整份回次重新求解并整份替换供数表，版本号 +1。若新约束无解或本页面版本已过期，
+    请求会被拒绝并说明原因，当前供数原样保留。每行一个实测点，两个文本框按行对齐；段序号从 0 开始，孔深为整数毫米。
+  </p>
+  <form method="post" action="/runs/{{ record.run_id }}/correct">
+    <input type="hidden" name="expected_version" value="{{ record.version }}">
+    <div class="grid2">
+      <div>
+        <label>段序号（每行一个）</label>
+        <textarea name="seg_index" style="height:120px">{% for m in record.measured_starts %}{{ m[0] }}
+{% endfor %}</textarea>
+      </div>
+      <div>
+        <label>实测起点孔深 mm（每行一个，与左侧对齐）</label>
+        <textarea name="depth" style="height:120px">{% for m in record.measured_starts %}{{ m[1] }}
+{% endfor %}</textarea>
+      </div>
+    </div>
+    <p style="margin-top:10px"><label>更正说明：</label>
+      <input type="text" name="note" placeholder="如：补测第 2 段起点，校正缺失量"></p>
+    <button type="submit">提交更正并重算</button>
+  </form>
+</div>
+
+<h2>更正历史</h2>
+<table>
+  <thead><tr><th>#</th><th>版本变化</th><th>说明</th><th>时间</th></tr></thead>
+  <tbody>
+  {% for h in history %}
+    <tr><td>{{ h.id }}</td><td>v{{ h.from_version }} → v{{ h.to_version }}</td><td>{{ h.note }}</td><td>{{ h.created_at }}</td></tr>
+  {% else %}
+    <tr><td colspan="4" class="muted">暂无更正记录（当前为导入时的版本 1）。</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
